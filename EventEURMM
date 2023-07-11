@@ -1,0 +1,93 @@
+#Necessary packages
+
+import eventstudy as es
+import numpy as np
+import matplotlib.pyplot as plt
+import pandas as pd
+import openpyxl as px
+import scipy
+
+#Load the prices data
+# Specify the paths to the Excel files
+excel_file_1 = 'closing_thesis.xlsx'
+excel_file_2 = 'stoxx50_closing_h.xlsx'
+
+# Load the Excel files
+workbook_1 = px.load_workbook(excel_file_1)
+workbook_2 = px.load_workbook(excel_file_2)
+
+# List to store individual sheet DataFrames
+all_sheets = []
+
+# Iterate over each sheet in the first workbook
+for sheet_name in workbook_1.sheetnames:
+    # Load the sheet into a DataFrame
+    sheet_df_1 = pd.read_excel(excel_file_1, sheet_name=sheet_name, header=None)
+    
+    # Get the column index for prices (column B)
+    prices_column_index = 1
+    
+    # Get the row index where the price data starts (row 2)
+    prices_start_row = 2
+    
+    # Perform the calculation to convert prices to returns
+    returns = sheet_df_1.iloc[prices_start_row - 1:, prices_column_index].pct_change()
+    
+    # Replace the prices column with the returns
+    sheet_df_1.iloc[prices_start_row - 1:, prices_column_index] = returns
+    
+    # Get the name of the stock
+    stock_name = sheet_df_1.iloc[0, prices_column_index]
+    
+    # Set the column names as 'date' and the stock name
+    sheet_df_1.columns = ['date', stock_name]
+    
+    # Drop the first row (header row)
+    sheet_df_1 = sheet_df_1.drop(0)
+    
+    # Append the sheet DataFrame to the list
+    all_sheets.append(sheet_df_1)
+
+# Merge all sheets into a single DataFrame
+merged_df = pd.concat(all_sheets, ignore_index=True)
+
+
+# Load sheet_df_2 into a DataFrame
+sheet_name_2 = workbook_2.sheetnames[0]  # Assuming only one sheet in the file
+sheet_df_2 = pd.read_excel(excel_file_2, sheet_name=sheet_name_2)
+
+# Get the column index for prices ('stoxx50' column)
+prices_column_index_2 = sheet_df_2.columns.get_loc('stoxx50')
+
+# Get the row index where the price data starts (row 2)
+prices_start_row_2 = 1
+
+# Convert 'date' column to datetime64[ns] in sheet_df_2
+sheet_df_2['date'] = pd.to_datetime(sheet_df_2['date'])
+
+# Perform the calculation to convert prices to returns in sheet_df_2
+returns_2 = sheet_df_2.iloc[prices_start_row - 1:, prices_column_index].pct_change()
+
+# Replace the prices column with the returns in sheet_df_2
+sheet_df_2.iloc[prices_start_row - 1:, prices_column_index] = returns_2
+
+# Concatenate merged_df and sheet_df_2 along the columns axis
+#merged_df = pd.concat([merged_df, sheet_df_2['stoxx50']], axis=1)
+merged_df = pd.concat([merged_df, sheet_df_2[['date', 'stoxx50']]], ignore_index=True)
+
+# Print the updated merged DataFrame
+print(merged_df)
+
+prices_test = merged_df
+
+#Load the event data
+events_test = pd.read_csv('event_dates_finale.csv', delimiter = ';')
+
+#Create comparable headers for the prices and event data
+events_test.columns = [events_test.columns[0].lower(), events_test.columns[1].lower()] + events_test.columns[2:].tolist()
+prices_test.columns = [prices_test.columns[0]] + prices_test.columns[1:].str.lower().tolist()
+events_test['security_ticker'] = events_test['security_ticker'].str.lower()
+
+#Ensure that the event dates abd returns files have the same columns
+
+
