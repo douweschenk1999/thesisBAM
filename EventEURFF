@@ -121,6 +121,8 @@ prices_test.columns = ['date'] + price_tickers.tolist()
 #This is reasonable, as the 0's will not be used for the event study.
 prices_test = prices_test.fillna(0)
 prices_test.to_csv('prices_test.csv')
+es.Single.import_returns(path = 'prices_test.csv')
+
 
 #Import the Fama-French data
 es.Single.import_FamaFrench('famafrench_format.csv')
