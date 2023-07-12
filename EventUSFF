@@ -1,1 +1,132 @@
+#Necessary packages
+
+import eventstudy as es
+import numpy as np
+import matplotlib.pyplot as plt
+import pandas as pd
+import openpyxl as px
+import scipy
+
+# Specify the path to the Excel file
+excel_file_1 = 'us_stocks.xlsx'
+
+# Load the Excel file
+workbook_1 = px.load_workbook(excel_file_1)
+
+# List to store individual sheet DataFrames
+all_sheets = []
+
+# Iterate over each sheet in the first workbook
+for sheet_name in workbook_1.sheetnames:
+    print("Processing sheet:", sheet_name)  # Added for debugging
+
+    # Load the sheet into a DataFrame
+    sheet_df_1 = pd.read_excel(excel_file_1, sheet_name=sheet_name, header=None)
+    
+    # Get the column index for prices (column B)
+    prices_column_index = 1
+    
+    # Get the row index where the price data starts (row 7)
+    prices_start_row = 7
+    
+    # Get the company name from cell B5
+    stock_name = sheet_df_1.iloc[4, prices_column_index]
+    
+    # Select the relevant data (dates and prices) starting from row 7
+    relevant_data = sheet_df_1.iloc[prices_start_row - 1:, :2].copy()
+    
+    # Convert prices column to numeric values
+    relevant_data.iloc[:, 1] = pd.to_numeric(relevant_data.iloc[:, 1], errors='coerce')
+    
+    # Perform the calculation to convert prices to returns
+    returns = relevant_data.iloc[:, 1].pct_change()
+    
+    # Replace the prices column with the returns
+    relevant_data.iloc[:, 1] = returns
+    
+    # Set the column names as 'date' and the stock name
+    relevant_data.columns = ['date', stock_name]
+    
+    # Append the relevant data DataFrame to the list
+    all_sheets.append(relevant_data)
+
+# Merge all sheets into a single DataFrame
+merged_df = pd.concat(all_sheets, ignore_index=True)
+
+prices_test = merged_df
+
+#Load the event data
+events_test = pd.read_excel('output_us.xlsx')
+
+#Cleaning
+events_test.columns = [events_test.columns[0].lower(), events_test.columns[1].lower()] + events_test.columns[2:].tolist()
+prices_test.columns = [prices_test.columns[0]] + prices_test.columns[1:].str.lower().tolist()
+events_test['security_ticker'] = events_test['security_ticker'].str.lower()
+prices_test.columns = prices_test.columns.str.replace('u:', '', regex=True).str.replace('@', '', regex=True)
+event_tickers = events_test['security_ticker'].unique()
+price_tickers = prices_test.columns[1:]
+price_tickers = price_tickers.str.strip()
+event_tickers = event_tickers[~pd.isna(event_tickers)]
+
+# Loop over each ticker and remove leading/trailing whitespaces or special characters
+event_tickers = [str(ticker).strip() for ticker in event_tickers if isinstance(ticker, str)]
+
+mismatched_tickers = set(event_tickers) - set(price_tickers)
+if len(mismatched_tickers) > 0:
+    print("Tickers in event_tickers do not match column headers in price_tickers:")
+    print(mismatched_tickers)
+else:
+    print("All tickers in events_tickers match column headers in price_tickers.")
+
+mismatched_tickers_2 = set(price_tickers) - set(event_tickers)
+if len(mismatched_tickers_2) > 0:
+    print("Tickers in price_tickers do not match column values in event_tickers:")
+    print(mismatched_tickers_2)
+else:
+    print("All tickers in price_tickers match column values in event_tickers.")
+
+event_tickers = [ticker for ticker in event_tickers if ticker not in mismatched_tickers]
+
+events_test = events_test[events_test['security_ticker'].isin(event_tickers)]
+prices_test_columns = ['date'] + price_tickers.tolist()
+prices_test.columns = prices_test_columns
+
+prices_test = prices_test.fillna(0)
+set(prices_test.columns) - set(events_test['security_ticker'])
+
+# Remove rows with value "0" in the date column
+prices_test = prices_test[prices_test['date'] != 0]
+
+events_test = events_test.reset_index(drop=True)
+prices_test = prices_test.reset_index(drop=True)
+prices_test['date'] = pd.to_datetime(prices_test['date']).dt.date
+
+es.Single.import_returns(path = 'prices.csv')
+events_test['event_date'] = pd.to_datetime(events_test['event_date'], format='%d/%m/%Y').dt.strftime('%Y%m%d')
+events_test['market_ticker'] = 's&pcomp'
+events_test.to_csv('events.csv')
+
+fama = pd.read_csv('fama_french_formatted.csv')
+es.Single.import_FamaFrench('fama_french_formatted.csv')
+
+tickers = events_test['security_ticker'].unique()
+
+for ticker in tickers: 
+    announcements = es.Multiple.from_csv(
+        'events.csv',
+        es.Single.FamaFrench_5factor,
+        event_window = (-5, +5),
+        estimation_size = 240,
+        buffer_size = 5,
+        ignore_errors = True
+    )#View the results
+results = announcements.results()
+
+#Create a visualisation
+announcements.plot(AAR = True)
+plt.xlabel('Day')
+plt.ylabel('Cumulative Average Abnormal Return')
+
+#Observe the distribution of the CAR's
+announcements.get_CAR_dist(decimals = 3)
 
