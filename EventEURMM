@@ -88,6 +88,72 @@ events_test.columns = [events_test.columns[0].lower(), events_test.columns[1].lo
 prices_test.columns = [prices_test.columns[0]] + prices_test.columns[1:].str.lower().tolist()
 events_test['security_ticker'] = events_test['security_ticker'].str.lower()
 
-#Ensure that the event dates abd returns files have the same columns
+#Ensure that the event dates and returns files have the same columns
+event_tickers = events_test['security_ticker'].unique()
+price_tickers = prices_test.columns[1:]
+price_tickers = price_tickers.str.strip()
+event_tickers = np.char.strip(event_tickers.astype(str))
+
+#Check whether event_tickers and price_tickers are the same:
+mismatched_tickers = set(event_tickers) - set(price_tickers)
+if len(mismatched_tickers) > 0:
+    print("Tickers in event_dates_finale.csv do not match column headers in merged_df:")
+    print(mismatched_tickers)
+else:
+    print("All tickers in event_dates_finale.csv match column headers in merged_df.")
+
+mismatched_tickers_2 = set(price_tickers) - set(event_tickers)
+if len(mismatched_tickers_2) > 0:
+    print("Tickers in merged_df do not match column headers in event_dates:")
+    print(mismatched_tickers_2)
+else:
+    print("All tickers in event_dates_finale.csv match column headers in merged_df.")
+
+#Add all relevant columns to events_test
+events_test = events_test[events_test['security_ticker'].isin(event_tickers)]
+
+prices_test.columns = ['date'] + price_tickers.tolist()
+
+#Change NA's into 0's.
+#This is reasonable, as the 0's will not be used for the event study.
+prices_test = prices_test.fillna(0)
+prices_test.to_csv('prices_test.csv')
+es.Single.import_returns(path = 'prices_test.csv')
+
+#Change NA's into 0's. Changing into 0 leads to exclusion if applicable.
+events_test = events_test.fillna(0)
+events_test.to_csv('events_test.csv')
+
+#Perform the event study
+tickers = events_test['security_ticker'].unique()
+
+announcements = dict()
+
+for ticker in tickers: 
+    announcements = es.Multiple.from_csv(
+        'events_test.csv',
+        es.Single.market_model,
+        event_window = (-5, +5),
+        estimation_size = 240,
+        buffer_size = 5,
+        ignore_errors = True
+    )
+
+#View the results
+results = announcements.results()
+
+#Create a visualisation
+announcements.plot(AAR = True)
+plt.xlabel('Day')
+plt.ylabel('Cumulative Average Abnormal Return')
+
+#Observe the distribution of the CAR's
+announcements.get_CAR_dist(decimals = 3)
+
+
+
+
+
+
 
 
