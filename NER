@@ -18,6 +18,15 @@ df2 = pd.read_csv('20202023chatbot_2.csv', delimiter=';')
 # Concatenate the three dataframes together vertically
 df = pd.concat([df1, df2])
 
+#Descriptive statistic: Distribution articles over years
+year = df['PubDate']
+year = pd.to_datetime(year).dt.year
+year_counts = year.value_counts()
+plt.pie(year_counts, labels = year_counts.index, autopct = '%1.1f%%')
+plt.axis('equal')
+plt.savefig('piechart.png')
+plt.show()
+
 
 #Perform the NER
 nlp = spacy.load("en_core_web_sm")
